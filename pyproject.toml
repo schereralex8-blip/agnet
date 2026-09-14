@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "homework-agent"
 version = "0.1.0"
-description = "A homework tutor in your terminal, powered by Claude."
+description = "Does your homework: reads the assignment, answers it, shows the working."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

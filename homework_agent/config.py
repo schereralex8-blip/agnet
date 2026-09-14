@@ -10,7 +10,7 @@ from pathlib import Path
 # quietly gets the maths wrong is worse than no tutor at all.
 DEFAULT_MODEL = "claude-opus-5"
 
-MODES = ("tutor", "solve", "check")
+MODES = ("solve", "tutor", "check")
 
 
 @dataclass
@@ -21,7 +21,7 @@ class Config:
     # Streaming is always on, so we can afford a roomy output cap.
     max_tokens: int = 32000
     effort: str = "high"
-    mode: str = "tutor"
+    mode: str = "solve"
     workspace: Path = field(default_factory=Path.cwd)
     # Running model-written Python is opt-in, and every run still asks first
     # unless the student also passed --yes.

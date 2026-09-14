@@ -20,7 +20,7 @@ from homework_agent.ui import Console
 
 HELP = """commands
   /help              this list
-  /mode tutor|solve|check
+  /mode solve|tutor|check
   /tutor /solve /check   shorthand for the above
   /attach PATH       pull a file into the next question
   /due               your tracked assignments
@@ -31,8 +31,8 @@ HELP = """commands
   /exit              leave (Ctrl-D works too)
 
 modes
-  tutor   hints and next steps, you do the work (default)
-  solve   the full worked solution
+  solve   the work, done for you (default)
+  tutor   hints and next steps, you do the work
   check   you paste your work, it gets graded
 """
 
@@ -40,13 +40,14 @@ modes
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hw",
-        description="A homework tutor in your terminal.",
+        description="Does your homework: reads the assignment, answers it, shows the working.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples\n"
-            "  hw                          start a chat in tutor mode\n"
-            "  hw ask 'why does u-substitution work?'\n"
+            "  hw do pset3.pdf              do the whole assignment, answers to answers.md\n"
             "  hw solve 'integrate x*e^x dx'\n"
+            "  hw                           start a chat\n"
+            "  hw ask 'why does u-substitution work?' --mode tutor\n"
             "  hw check my_proof.md         grade work you already did\n"
             "  hw due                       what is due, soonest first\n"
         ),
@@ -69,7 +70,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command")
 
-    chat = subparsers.add_parser("chat", parents=[common], help="interactive tutoring session")
+    do = subparsers.add_parser(
+        "do", parents=[common], help="do a whole assignment and write the answers to a file"
+    )
+    do.add_argument("path", help="the assignment file")
+    do.add_argument(
+        "-o", "--out", default=None, help="where to write the answers (default answers.md)"
+    )
+    do.add_argument(
+        "instructions",
+        nargs="*",
+        help="anything to add, e.g. 'skip question 5' - put these last",
+    )
+    do.set_defaults(func=cmd_do)
+
+    chat = subparsers.add_parser("chat", parents=[common], help="interactive session")
     chat.set_defaults(func=cmd_chat)
 
     ask = subparsers.add_parser("ask", parents=[common], help="ask one question and exit")
@@ -214,6 +229,34 @@ def cmd_check(args: argparse.Namespace) -> int:
         question += f" {extra}"
     question += " Read the file first."
     return run_once(config, question, args)
+
+
+def cmd_do(args: argparse.Namespace) -> int:
+    """Read an assignment, answer all of it, and leave the answers in a file."""
+    config = config_from_args(args)
+    config.mode = "solve"
+    # Writing the answer file is the entire point of this command, so it does not
+    # stop to ask; --allow-code still gates running anything.
+    config.auto_approve = True
+
+    out = args.out or "answers.md"
+    question = (
+        f"Do the assignment in {args.path}. Read it first, then answer every question in it "
+        f"completely, and save the finished answers to {out} with write_file. Keep the "
+        "assignment's own numbering so the answers line up with the questions."
+    )
+    extra = " ".join(args.instructions)
+    if extra:
+        question += f" {extra}"
+
+    code = run_once(config, question, args)
+    written = Path(config.workspace) / out
+    console = Console()
+    if code == 0 and written.exists():
+        console.success(f"answers written to {written}")
+    elif code == 0:
+        console.info(f"no file was written - the answers are above (expected {out})")
+    return code
 
 
 def cmd_sessions(args: argparse.Namespace) -> int:

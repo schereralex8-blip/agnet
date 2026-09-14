@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 
 import pytest
 
@@ -118,7 +119,7 @@ def test_mode_switch():
 
 def test_bad_mode_is_rejected():
     _, config, _, console = run_command("/mode sideways")
-    assert config.mode == "tutor"
+    assert config.mode == "solve"
     assert "mode must be one of" in output(console)
 
 
@@ -206,3 +207,59 @@ def test_unnamed_sessions_are_not_persisted(console):
     session = cli.load_session(Config(), None, console)
     assert session.name == "scratch"
     assert output(console) == ""
+
+
+# -- doing the assignment ----------------------------------------------------
+
+
+def test_solve_is_the_default_mode():
+    assert Config().mode == "solve"
+    assert cli.config_from_args(parse(["ask", "anything"])).mode == "solve"
+
+
+def test_do_builds_an_answer_everything_prompt(monkeypatch):
+    seen = {}
+
+    def fake_run_once(config, question, args):
+        seen.update(mode=config.mode, question=question, approve=config.auto_approve)
+        return 0
+
+    monkeypatch.setattr(cli, "run_once", fake_run_once)
+    cli.main(["do", "pset3.pdf"])
+
+    assert seen["mode"] == "solve"
+    # Writing the answers is the point of the command, so it does not stop to ask.
+    assert seen["approve"] is True
+    assert "pset3.pdf" in seen["question"]
+    assert "every question" in seen["question"]
+    assert "answers.md" in seen["question"]
+
+
+def test_do_honours_a_custom_output_path_and_extra_instructions(monkeypatch):
+    seen = {}
+
+    def fake_run_once(config, question, args):
+        seen["question"] = question
+        return 0
+
+    monkeypatch.setattr(cli, "run_once", fake_run_once)
+    # Free-form instructions come last, so --out is given as a flag after them.
+    cli.main(["do", "pset3.pdf", "skip", "question", "5", "-o", "hw3.md"])
+    assert "hw3.md" in seen["question"]
+    assert "skip question 5" in seen["question"]
+
+
+def test_do_reports_where_the_answers_landed(monkeypatch, tmp_path, capsys):
+    def fake_run_once(config, question, args):
+        (Path(config.workspace) / "answers.md").write_text("1. 42")
+        return 0
+
+    monkeypatch.setattr(cli, "run_once", fake_run_once)
+    assert cli.main(["do", "pset.pdf", "-C", str(tmp_path)]) == 0
+    assert "answers written to" in capsys.readouterr().out
+
+
+def test_do_says_so_when_no_file_was_written(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(cli, "run_once", lambda c, q, a: 0)
+    assert cli.main(["do", "pset.pdf", "-C", str(tmp_path)]) == 0
+    assert "no file was written" in capsys.readouterr().out

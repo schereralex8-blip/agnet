@@ -41,7 +41,7 @@ class Session:
 
     name: str
     messages: list[dict[str, Any]] = field(default_factory=list)
-    mode: str = "tutor"
+    mode: str = "solve"
     subject: str | None = None
     created: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
     updated: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
@@ -99,7 +99,7 @@ class SessionStore:
         return Session(
             name=data.get("name", name),
             messages=data.get("messages", []),
-            mode=data.get("mode", "tutor"),
+            mode=data.get("mode", "solve"),
             subject=data.get("subject"),
             created=data.get("created", ""),
             updated=data.get("updated", ""),

@@ -1,27 +1,21 @@
 # Homework Agent
 
-A homework tutor that runs in your terminal. It reads your assignment, works through
-problems with you, checks your answers, and keeps track of what's due.
-
-By default it is a *tutor*, not an answer key: it gives you the next step and lets you
-take it. When you actually want the full worked solution, you ask for it.
+Point it at an assignment and it does the assignment. It reads the file, answers every
+question with the working shown, checks its own arithmetic, and writes the finished
+answers to a file. It also tracks what's due.
 
 ```
-$ hw
-Homework Agent
-mode: tutor  model: claude-opus-5  folder: /home/sam/calc-hw
-/help for commands, /exit to leave, Ctrl-C to interrupt
-
-you > I'm stuck on question 3 of pset.pdf
-  ... read_assignment(path=pset.pdf)
-Question 3 asks for d/dx of x^x. You can't use the power rule here - the exponent
-isn't constant - and you can't use the exponential rule either, because the base
-isn't constant. What's a way to turn an exponent into a coefficient?
-
-you > take the log of both sides?
-That's it. Set y = x^x, take ln of both sides, and differentiate implicitly.
-What do you get for the left side?
+$ hw do pset3.pdf
+  ... read_assignment(path=pset3.pdf)
+  ... calculate(expression=(-3 + sqrt(9 + 24)) / 4)
+  ... write_file(path=answers.md)
+Answered all six questions. Q4 asked for three significant figures, so I rounded
+1.68 from 1.6771. Everything checks out on substitution.
+answers written to /home/sam/calc-hw/answers.md
 ```
+
+If you'd rather work through it yourself, `--mode tutor` gives hints and next steps
+instead. Both are there; doing the work is the default.
 
 ## Install
 
@@ -36,26 +30,33 @@ or run `ant auth login` if you have the Anthropic CLI — the SDK picks that up 
 ## Use
 
 ```bash
-hw                                    # chat, tutor mode
-hw ask "why does u-substitution work?"
-hw solve "integrate x*e^x dx"         # full worked solution
+hw do pset3.pdf                       # the whole assignment -> answers.md
+hw do pset3.pdf -o hw3.md             # ...somewhere else
+hw do lab.docx skip question 5        # extra instructions go last
+hw solve "integrate x*e^x dx"         # one problem, worked out
+hw                                    # chat
 hw check my_proof.md                  # grade work you already did
 hw chat -s calc-hw                    # a named session you can come back to
 hw due                                # what's due, soonest first
 ```
 
+`hw do` writes the answer file without stopping to ask — that's the whole point of the
+command. Everywhere else, writing a file asks first.
+
 ### Modes
 
-| Mode    | What it does                                                        |
-| ------- | ------------------------------------------------------------------- |
-| `tutor` | Hints and next steps. It asks what you've tried. **Default.**        |
-| `solve` | The full worked solution, with a check of the answer at the end.     |
-| `check` | You bring the work, it finds the first step that goes wrong.         |
+| Mode    | What it does                                                          |
+| ------- | --------------------------------------------------------------------- |
+| `solve` | Does the work: every part, working shown, answers verified. **Default.** |
+| `tutor` | Hints and next steps, you turn the crank. Ask outright and it answers. |
+| `check` | You bring the work, it finds the first step that goes wrong and fixes it. |
 
-Switch mid-conversation with `/solve`, `/tutor`, `/check`. Tutor mode won't refuse you
-a final answer or lecture you about it — it tells you `/mode solve` exists, and if you
-ask again, you get it. What it won't do in any mode is ghost-write an essay you'll hand
-in as your own; it'll outline, critique, or demonstrate instead.
+Switch mid-conversation with `/solve`, `/tutor`, `/check`.
+
+In solve mode it produces finished work — full essays and lab reports at the length
+asked for, complete programs, every numbered part answered in the assignment's own
+notation and significant figures. Where an assignment is ambiguous it states the
+reading it took in one line rather than stopping to ask.
 
 ### In-chat commands
 
@@ -80,6 +81,7 @@ reasoning as it works.
 | `-s NAME`       | Name the session so it saves and resumes                              |
 | `-y`            | Skip approval prompts                                                 |
 | `--effort`      | `low`…`max` — how hard the model works (default `high`)               |
+| `-o PATH`       | (`hw do` only) where the answers go, default `answers.md`             |
 | `--model`       | Override the model (default `claude-opus-5`)                          |
 
 ### Tracking assignments
@@ -126,7 +128,7 @@ Anything that writes a file or runs code asks you first, every time, unless you 
 
 ```bash
 pip install -e ".[dev]"
-pytest                       # 104 tests, no API key or network needed
+pytest                       # 110 tests, no API key or network needed
 ```
 
 The test suite drives the whole agent loop against a fake client that replays scripted
@@ -135,9 +137,9 @@ paths are all covered offline.
 
 ```
 homework_agent/
-  cli.py          commands, chat loop, slash commands
+  cli.py          commands (do, solve, chat, check...), chat loop, slash commands
   agent.py        the streaming request → tool → repeat loop
-  prompts.py      the system prompts; the modes live here
+  prompts.py      the system prompts; how much each mode gives away lives here
   session.py      conversation persistence and interrupt repair
   ui.py           terminal output and approval prompts
   tools/          calculator, files, python, assignment tracker

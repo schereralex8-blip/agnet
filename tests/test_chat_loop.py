@@ -133,3 +133,33 @@ def test_exit_command_leaves_cleanly(monkeypatch, capsys):
     code, client = drive(monkeypatch, ["/exit", "never asked"], [])
     assert code == 0
     assert client.calls == []
+
+
+def test_do_command_writes_the_answers_without_asking(monkeypatch, tmp_path, capsys):
+    """`hw do` runs the write_file tool end to end - no approval prompt in the way."""
+    (tmp_path / "pset.txt").write_text("Q1: d/dx of x^2\nQ2: d/dx of x^3")
+
+    client = FakeClient(
+        turns=[
+            FakeMessage([tool_block("read_assignment", {"path": "pset.txt"}, "r1")],
+                        stop_reason="tool_use"),
+            FakeMessage(
+                [tool_block("write_file", {"path": "answers.md", "content": "1. 2x\n2. 3x^2"}, "w1")],
+                stop_reason="tool_use",
+            ),
+            FakeMessage([text_block("Done - both derivatives are in answers.md.")]),
+        ]
+    )
+
+    def explode(*_):
+        raise AssertionError("hw do must not stop to ask about writing the answers")
+
+    monkeypatch.setattr(builtins, "input", explode)
+    monkeypatch.setattr(cli, "make_client", lambda: client)
+
+    assert cli.main(["do", "pset.txt", "-C", str(tmp_path)]) == 0
+
+    assert (tmp_path / "answers.md").read_text() == "1. 2x\n2. 3x^2"
+    out = capsys.readouterr().out
+    assert "answers written to" in out
+    assert "MODE: SOLVE" in client.calls[0]["system"][1]["text"]
