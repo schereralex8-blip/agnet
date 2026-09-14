@@ -122,3 +122,75 @@ def test_utf8_text_reads_exactly(workspace):
 def test_extensionless_text_file_reads(workspace):
     (workspace / "README").write_text("Q1: prove it")
     assert "prove it" in ReadAssignmentTool(workspace).run(path="README")
+
+
+# -- Word documents ----------------------------------------------------------
+
+docx_lib = pytest.importorskip("docx", reason="python-docx not installed")
+
+
+def write_docx(path, blocks=()):
+    """Build a .docx from blocks in order: a string is a paragraph, a list is a table."""
+    document = docx_lib.Document()
+    for block in blocks:
+        if isinstance(block, str):
+            document.add_paragraph(block)
+            continue
+        table = document.add_table(rows=len(block), cols=len(block[0]))
+        for r, row in enumerate(block):
+            for c, value in enumerate(row):
+                table.cell(r, c).text = value
+    document.save(str(path))
+    return path
+
+
+def test_reads_a_word_document(workspace):
+    write_docx(workspace / "pset.docx", ["Q1: Differentiate x^3.", "Q2: Evaluate the integral."])
+    out = ReadAssignmentTool(workspace).run(path="pset.docx")
+    assert "Q1: Differentiate x^3." in out
+    assert "Q2: Evaluate the integral." in out
+
+
+def test_word_tables_are_read_in_place(workspace):
+    """A table usually belongs to the question right above it - keep that order."""
+    write_docx(
+        workspace / "data.docx",
+        [
+            "Q1: Fit a line to this data.",
+            [["x", "y"], ["1", "2.1"]],
+            "Q2: Report the residuals.",
+        ],
+    )
+    out = ReadAssignmentTool(workspace).run(path="data.docx")
+    assert "x | y" in out
+    assert out.index("Q1") < out.index("x | y") < out.index("Q2")
+
+
+def test_empty_word_document_says_the_text_may_be_images(workspace):
+    write_docx(workspace / "scan.docx", ["", "   "])
+    with pytest.raises(ToolError, match="no readable text"):
+        ReadAssignmentTool(workspace).run(path="scan.docx")
+
+
+def test_corrupt_word_document_is_reported(workspace):
+    (workspace / "broken.docx").write_bytes(b"PK\x03\x04not-really-a-docx")
+    with pytest.raises(ToolError, match="could not read Word document"):
+        ReadAssignmentTool(workspace).run(path="broken.docx")
+
+
+def test_word_template_is_read_too(workspace):
+    write_docx(workspace / "assignment.dotx", ["Q1: State the theorem."])
+    assert "State the theorem" in ReadAssignmentTool(workspace).run(path="assignment.dotx")
+
+
+def test_missing_python_docx_explains_the_install(workspace, monkeypatch):
+    write_docx(workspace / "pset.docx", ["Q1"])
+    monkeypatch.setitem(__import__("sys").modules, "docx", None)
+    with pytest.raises(ToolError, match=r"homework-agent\[docx\]"):
+        ReadAssignmentTool(workspace).run(path="pset.docx")
+
+
+def test_legacy_doc_is_still_refused(workspace):
+    (workspace / "old.doc").write_bytes(b"\xd0\xcf\x11\xe0legacy-word")
+    with pytest.raises(ToolError, match="old binary format"):
+        ReadAssignmentTool(workspace).run(path="old.doc")

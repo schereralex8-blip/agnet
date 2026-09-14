@@ -20,21 +20,23 @@ instead. Both are there; doing the work is the default.
 ## Install
 
 ```bash
-pip install -e .            # plus: pip install -e ".[pdf]" to read PDF assignments
+pip install -e ".[files]"   # [files] adds PDF and Word support - worth having
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Python 3.10+. Get a key from [console.anthropic.com](https://console.anthropic.com/),
 or run `ant auth login` if you have the Anthropic CLI — the SDK picks that up too.
 
-**Assignment formats:** plain text, Markdown, LaTeX, CSV, code, and PDF (with the
-`[pdf]` extra). Word documents are refused with a message telling you to export to PDF
-first — reading a `.docx` as text would just feed the model zip garbage.
+**Assignment formats:** plain text, Markdown, LaTeX, CSV, code, PDF, and Word
+(`.docx`/`.dotx`) — the last two need the `[files]` extra above. Word tables are read
+in place, so a data table stays attached to the question it belongs to. The old binary
+`.doc` format and scanned images are refused with a message saying what to do instead.
 
 ## Use
 
 ```bash
 hw do pset3.pdf                       # the whole assignment -> answers.md
+hw do essay.docx                      # Word works too
 hw do pset3.pdf -o hw3.md             # ...somewhere else
 hw do pset3.pdf skip question 5        # extra instructions go last
 hw solve "integrate x*e^x dx"         # one problem, worked out
@@ -105,7 +107,7 @@ The agent shares this list: mention a deadline in conversation and it can add it
 | Tool                          | What it's for                                    | Asks first |
 | ----------------------------- | ------------------------------------------------ | ---------- |
 | `calculate`                   | Exact arithmetic, so it stops fumbling numbers    | no         |
-| `read_assignment`, `list_files` | Reading your problem set, draft, data, or code  | no         |
+| `read_assignment`, `list_files` | Your problem set, draft, data, or code — text, PDF, Word | no |
 | `write_file`                   | Saving notes or code you asked for               | **yes**    |
 | `run_python`                   | Solving, stats, simulation (`--allow-code`)      | **yes**    |
 | `add/list/complete_assignment` | The tracker above                                | no         |
@@ -132,7 +134,7 @@ Anything that writes a file or runs code asks you first, every time, unless you 
 
 ```bash
 pip install -e ".[dev]"
-pytest                       # 119 tests, no API key or network needed
+pytest                       # 126 tests, no API key or network needed
 ```
 
 The test suite drives the whole agent loop against a fake client that replays scripted

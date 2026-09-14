@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, Iterator
 
 from homework_agent.tools.base import Tool, ToolError
 
@@ -35,8 +36,7 @@ def resolve_in_workspace(workspace: Path, relative: str) -> Path:
 
 # Formats a student is likely to have, that are not plain text and are not PDF.
 BINARY_FORMATS = {
-    ".docx": "a Word document",
-    ".doc": "a Word document",
+    ".doc": "a Word document in the old binary format",
     ".odt": "an OpenDocument file",
     ".pptx": "a PowerPoint deck",
     ".xlsx": "an Excel workbook",
@@ -76,6 +76,64 @@ def _read_text(path: Path, shown: str) -> str:
         return raw.decode("latin-1", errors="replace")
 
 
+def _docx_body(document: Any) -> Iterator[Any]:
+    """Yield paragraphs and tables in the order they appear in the document.
+
+    python-docx exposes `.paragraphs` and `.tables` as separate lists, which loses
+    their interleaving - and in a problem set the table usually belongs to the
+    question right above it.
+    """
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    for child in document.element.body.iterchildren():
+        if child.tag.endswith("}p"):
+            yield Paragraph(child, document)
+        elif child.tag.endswith("}tbl"):
+            yield Table(child, document)
+
+
+def _render_docx_table(table: Any) -> str:
+    rows = []
+    for row in table.rows:
+        cells = [" ".join(cell.text.split()) for cell in row.cells]
+        rows.append(" | ".join(cells))
+    return "\n".join(rows)
+
+
+def _read_docx(path: Path) -> str:
+    try:
+        import docx
+    except ImportError:
+        raise ToolError(
+            f"{path.name} is a Word document and python-docx is not installed. "
+            "Install it with 'pip install homework-agent[docx]', or export the file to PDF "
+            "or plain text."
+        ) from None
+
+    try:
+        document = docx.Document(str(path))
+        parts = []
+        for block in _docx_body(document):
+            if hasattr(block, "rows"):  # a table
+                rendered = _render_docx_table(block)
+            else:
+                rendered = block.text.strip()
+            if rendered.strip():
+                parts.append(rendered)
+    except ToolError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - a bad zip raises any number of things
+        raise ToolError(f"could not read Word document {path.name}: {exc}") from None
+
+    if not parts:
+        raise ToolError(
+            f"{path.name} has no readable text - the questions may be images. "
+            "Ask the student to type out the question."
+        )
+    return "\n\n".join(parts)
+
+
 def _read_pdf(path: Path) -> str:
     try:
         from pypdf import PdfReader
@@ -104,7 +162,7 @@ class ReadAssignmentTool(Tool):
     description = (
         "Read a file from the student's homework folder: the problem set, their draft, their "
         "code, a data file. Always read the file before answering questions about 'the "
-        "assignment' or a numbered question. Handles text files and PDFs."
+        "assignment' or a numbered question. Handles text files, PDFs, and Word documents."
     )
     input_schema = {
         "type": "object",
@@ -130,8 +188,11 @@ class ReadAssignmentTool(Tool):
         if size > MAX_READ_BYTES:
             raise ToolError(f"{path!r} is {size // 1024}KB, too large to read in full.")
 
-        if target.suffix.lower() == ".pdf":
+        suffix = target.suffix.lower()
+        if suffix == ".pdf":
             text = _read_pdf(target)
+        elif suffix in {".docx", ".dotx"}:
+            text = _read_docx(target)
         else:
             text = _read_text(target, path)
 

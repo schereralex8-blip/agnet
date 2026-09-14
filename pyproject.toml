@@ -13,7 +13,10 @@ dependencies = ["anthropic>=1.0"]
 
 [project.optional-dependencies]
 pdf = ["pypdf>=4.0"]
-dev = ["pytest>=8.0"]
+docx = ["python-docx>=1.1"]
+# Everything needed to read assignments in the formats they actually arrive in.
+files = ["pypdf>=4.0", "python-docx>=1.1"]
+dev = ["pytest>=8.0", "pypdf>=4.0", "python-docx>=1.1"]
 
 [project.scripts]
 hw = "homework_agent.cli:main"
