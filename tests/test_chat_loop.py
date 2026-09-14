@@ -163,3 +163,53 @@ def test_do_command_writes_the_answers_without_asking(monkeypatch, tmp_path, cap
     out = capsys.readouterr().out
     assert "answers written to" in out
     assert "MODE: SOLVE" in client.calls[0]["system"][1]["text"]
+
+
+def test_fill_command_edits_the_document_end_to_end(monkeypatch, tmp_path, capsys):
+    """`hw fill` runs fill_document against the real file, with no approval prompt."""
+    docx = pytest.importorskip("docx")
+
+    document = docx.Document()
+    document.add_paragraph("Q1: Differentiate x^3.")
+    document.add_paragraph("Q2: Integrate 2x.")
+    document.save(str(tmp_path / "worksheet.docx"))
+
+    client = FakeClient(
+        turns=[
+            FakeMessage(
+                [tool_block("read_assignment", {"path": "worksheet.docx"}, "r1")],
+                stop_reason="tool_use",
+            ),
+            FakeMessage(
+                [
+                    tool_block(
+                        "fill_document",
+                        {
+                            "path": "worksheet.docx",
+                            "edits": [
+                                {"anchor": "Q1: Differentiate x^3.", "answer": "3x^2"},
+                                {"anchor": "Q2: Integrate 2x.", "answer": "x^2 + C"},
+                            ],
+                        },
+                        "f1",
+                    )
+                ],
+                stop_reason="tool_use",
+            ),
+            FakeMessage([text_block("Both answers are in the document.")]),
+        ]
+    )
+
+    def explode(*_):
+        raise AssertionError("hw fill must not stop to ask about editing the document")
+
+    monkeypatch.setattr(builtins, "input", explode)
+    monkeypatch.setattr(cli, "make_client", lambda: client)
+
+    assert cli.main(["fill", "worksheet.docx", "-C", str(tmp_path)]) == 0
+
+    filled = [p.text for p in docx.Document(str(tmp_path / "worksheet.docx")).paragraphs]
+    assert filled == ["Q1: Differentiate x^3.", "3x^2", "Q2: Integrate 2x.", "x^2 + C"]
+    # The untouched original is still there to fall back on.
+    assert (tmp_path / "worksheet.original.docx").exists()
+    assert "fill_document(worksheet.docx, 2 answer(s))" in capsys.readouterr().out

@@ -35,6 +35,7 @@ in place, so a data table stays attached to the question it belongs to. The old 
 ## Use
 
 ```bash
+hw fill worksheet.docx                # answers typed into the Word file itself
 hw do pset3.pdf                       # the whole assignment -> answers.md
 hw do essay.docx                      # Word works too
 hw do pset3.pdf -o hw3.md             # ...somewhere else
@@ -46,8 +47,30 @@ hw chat -s calc-hw                    # a named session you can come back to
 hw due                                # what's due, soonest first
 ```
 
-`hw do` writes the answer file without stopping to ask — that's the whole point of the
-command. Everywhere else, writing a file asks first.
+`hw do` and `hw fill` write without stopping to ask — that's the point of those
+commands. Everywhere else, writing a file asks first.
+
+### Typing into the document
+
+`hw fill` puts the answers in the assignment itself rather than a separate file:
+
+```bash
+hw fill worksheet.docx                # edits the file, keeps worksheet.original.docx
+hw fill worksheet.docx -o mine.docx   # fills a copy, original untouched
+hw fill quiz.docx answers only, no working
+```
+
+Each answer goes in a new paragraph under its question, or replaces the blank the
+question leaves (`________`, `Answer:`) — including blanks inside tables, and blanks
+Word has split across several runs, which is most of them. Answers are written as
+normal body text with the question's indentation, so an answer under a numbered
+question doesn't become the next numbered question.
+
+The first edit saves an untouched copy as `<name>.original.docx`, and later passes
+leave that copy alone, so there's always a clean version to go back to.
+
+Word only — `.docx` and `.dotx`. For a PDF or anything else, `hw do` gives you the
+answers in a separate file.
 
 ### Modes
 
@@ -109,6 +132,7 @@ The agent shares this list: mention a deadline in conversation and it can add it
 | `calculate`                   | Exact arithmetic, so it stops fumbling numbers    | no         |
 | `read_assignment`, `list_files` | Your problem set, draft, data, or code — text, PDF, Word | no |
 | `write_file`                   | Saving notes or code you asked for               | **yes**    |
+| `fill_document`                | Typing answers into a Word assignment in place   | **yes**    |
 | `run_python`                   | Solving, stats, simulation (`--allow-code`)      | **yes**    |
 | `add/list/complete_assignment` | The tracker above                                | no         |
 | `web_search`                   | Looking things up (`--search`)                   | no         |
@@ -134,7 +158,7 @@ Anything that writes a file or runs code asks you first, every time, unless you 
 
 ```bash
 pip install -e ".[dev]"
-pytest                       # 126 tests, no API key or network needed
+pytest                       # 152 tests, no API key or network needed
 ```
 
 The test suite drives the whole agent loop against a fake client that replays scripted
@@ -148,7 +172,7 @@ homework_agent/
   prompts.py      the system prompts; how much each mode gives away lives here
   session.py      conversation persistence and interrupt repair
   ui.py           terminal output and approval prompts
-  tools/          calculator, files, python, assignment tracker
+  tools/          calculator, files, docx editing, python, assignment tracker
 ```
 
 ### Configuration by environment

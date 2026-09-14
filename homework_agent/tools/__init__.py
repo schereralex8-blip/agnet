@@ -7,6 +7,7 @@ from pathlib import Path
 from homework_agent.config import Config
 from homework_agent.tools.base import Tool, ToolError, ToolRegistry, ToolResult
 from homework_agent.tools.calculator import CalculateTool
+from homework_agent.tools.docx_edit import FillDocumentTool
 from homework_agent.tools.files import ListFilesTool, ReadAssignmentTool, WriteFileTool
 from homework_agent.tools.python_exec import RunPythonTool
 from homework_agent.tools.tracker import (
@@ -34,6 +35,7 @@ def build_registry(config: Config) -> ToolRegistry:
         ReadAssignmentTool(workspace),
         ListFilesTool(workspace),
         WriteFileTool(workspace),
+        FillDocumentTool(workspace),
         AddAssignmentTool(tracker),
         ListAssignmentsTool(tracker),
         CompleteAssignmentTool(tracker),

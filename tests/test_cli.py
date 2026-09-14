@@ -263,3 +263,58 @@ def test_do_says_so_when_no_file_was_written(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cli, "run_once", lambda c, q, a: 0)
     assert cli.main(["do", "pset.pdf", "-C", str(tmp_path)]) == 0
     assert "no file was written" in capsys.readouterr().out
+
+
+# -- filling the document itself ---------------------------------------------
+
+
+def test_fill_targets_the_document_and_does_not_ask(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run_once(config, question, args):
+        seen.update(mode=config.mode, question=question, approve=config.auto_approve)
+        return 0
+
+    monkeypatch.setattr(cli, "run_once", fake_run_once)
+    assert cli.main(["fill", "worksheet.docx", "-C", str(tmp_path)]) == 0
+
+    assert seen["mode"] == "solve"
+    assert seen["approve"] is True
+    assert "worksheet.docx" in seen["question"]
+    assert "fill_document" in seen["question"]
+
+
+def test_fill_refuses_a_non_word_file(capsys):
+    assert cli.main(["fill", "answers.md"]) == 1
+    out = capsys.readouterr().out
+    assert "not a Word document" in out
+    assert "hw do" in out
+
+
+def test_fill_with_out_copies_first_and_leaves_the_original(monkeypatch, tmp_path, capsys):
+    pytest.importorskip("docx")
+    import docx
+
+    document = docx.Document()
+    document.add_paragraph("Q1: original text")
+    document.save(str(tmp_path / "worksheet.docx"))
+
+    seen = {}
+
+    def fake_run_once(config, question, args):
+        seen["question"] = question
+        return 0
+
+    monkeypatch.setattr(cli, "run_once", fake_run_once)
+    assert cli.main(["fill", "worksheet.docx", "-o", "mine.docx", "-C", str(tmp_path)]) == 0
+
+    assert (tmp_path / "mine.docx").exists()
+    assert "mine.docx" in seen["question"]
+    assert "worksheet.docx" not in seen["question"]
+    assert "filling a copy" in capsys.readouterr().out
+
+
+def test_fill_with_out_reports_a_missing_source(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(cli, "run_once", lambda c, q, a: 0)
+    assert cli.main(["fill", "gone.docx", "-o", "copy.docx", "-C", str(tmp_path)]) == 1
+    assert "does not exist" in capsys.readouterr().out

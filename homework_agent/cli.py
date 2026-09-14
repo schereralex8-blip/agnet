@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -14,7 +15,8 @@ from homework_agent.config import DEFAULT_MODEL, MODES, Config
 from homework_agent.session import Session, SessionStore, rollback_incomplete
 from homework_agent.tools import build_registry
 from homework_agent.tools.base import Tool, ToolError
-from homework_agent.tools.files import ReadAssignmentTool
+from homework_agent.tools.docx_edit import EDITABLE_SUFFIXES
+from homework_agent.tools.files import ReadAssignmentTool, resolve_in_workspace
 from homework_agent.tools.tracker import Tracker, validate_due
 from homework_agent.ui import Console
 
@@ -45,6 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "examples\n"
             "  hw do pset3.pdf              do the whole assignment, answers to answers.md\n"
+            "  hw fill worksheet.docx       type the answers into the Word file itself\n"
             "  hw solve 'integrate x*e^x dx'\n"
             "  hw                           start a chat\n"
             "  hw ask 'why does u-substitution work?' --mode tutor\n"
@@ -83,6 +86,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="anything to add, e.g. 'skip question 5' - put these last",
     )
     do.set_defaults(func=cmd_do)
+
+    fill = subparsers.add_parser(
+        "fill", parents=[common], help="type the answers straight into a Word assignment"
+    )
+    fill.add_argument("path", help="the .docx assignment to fill in")
+    fill.add_argument(
+        "-o", "--out", default=None, help="fill a copy at this path, leaving the original alone"
+    )
+    fill.add_argument(
+        "instructions", nargs="*", help="anything to add, e.g. 'answers only, no working'"
+    )
+    fill.set_defaults(func=cmd_fill)
 
     chat = subparsers.add_parser("chat", parents=[common], help="interactive session")
     chat.set_defaults(func=cmd_chat)
@@ -257,6 +272,50 @@ def cmd_do(args: argparse.Namespace) -> int:
     elif code == 0:
         console.info(f"no file was written - the answers are above (expected {out})")
     return code
+
+
+def cmd_fill(args: argparse.Namespace) -> int:
+    """Answer an assignment by typing into the Word document itself."""
+    config = config_from_args(args)
+    config.mode = "solve"
+    # Editing the document is what was asked for, so it does not stop to confirm.
+    config.auto_approve = True
+    console = Console()
+
+    if Path(args.path).suffix.lower() not in EDITABLE_SUFFIXES:
+        console.error(
+            f"{args.path} is not a Word document. Answers can only be typed into .docx files - "
+            "for anything else use 'hw do' and get the answers in a separate file."
+        )
+        return 1
+
+    target = args.path
+    if args.out:
+        try:
+            source = resolve_in_workspace(config.workspace, args.path)
+            destination = resolve_in_workspace(config.workspace, args.out)
+        except ToolError as exc:
+            console.error(str(exc))
+            return 1
+        if not source.exists():
+            console.error(f"{args.path} does not exist")
+            return 1
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        target = args.out
+        console.info(f"filling a copy at {args.out}")
+
+    question = (
+        f"Read {target}, then type your answers directly into it with the fill_document tool. "
+        "Put each answer in a new paragraph immediately after the question it answers, or, "
+        "where the question leaves a blank or an 'Answer:' label, replace that instead. Leave "
+        "the existing question text exactly as it is. Send every edit in one fill_document call."
+    )
+    extra = " ".join(args.instructions)
+    if extra:
+        question += f" {extra}"
+
+    return run_once(config, question, args)
 
 
 def cmd_sessions(args: argparse.Namespace) -> int:
