@@ -86,3 +86,39 @@ def test_pdf_without_pypdf_explains_itself(workspace, monkeypatch):
     monkeypatch.setitem(__import__("sys").modules, "pypdf", None)
     with pytest.raises(ToolError):
         ReadAssignmentTool(workspace).run(path="assignment.pdf")
+
+
+def test_word_documents_are_refused_with_a_way_forward(workspace):
+    """A .docx is a zip - reading it as text would feed the model mojibake."""
+    (workspace / "lab.docx").write_bytes(b"PK\x03\x04binary-zip-contents")
+    with pytest.raises(ToolError, match="Word document"):
+        ReadAssignmentTool(workspace).run(path="lab.docx")
+
+
+@pytest.mark.parametrize("name", ["scan.png", "deck.pptx", "data.xlsx", "bundle.zip"])
+def test_other_binary_formats_are_named(workspace, name):
+    (workspace / name).write_bytes(b"\x89PNG\x00\x01\x02")
+    with pytest.raises(ToolError, match="Export it to PDF or plain text"):
+        ReadAssignmentTool(workspace).run(path=name)
+
+
+def test_unlabelled_binary_is_caught_by_its_contents(workspace):
+    (workspace / "mystery.dat").write_bytes(b"\x00\x01\x02\x03" * 100)
+    with pytest.raises(ToolError, match="binary file"):
+        ReadAssignmentTool(workspace).run(path="mystery.dat")
+
+
+def test_latin1_text_still_reads(workspace):
+    """An assignment saved from Word as Latin-1 should not be refused."""
+    (workspace / "notes.txt").write_bytes("café naïve".encode("latin-1"))
+    assert "caf" in ReadAssignmentTool(workspace).run(path="notes.txt")
+
+
+def test_utf8_text_reads_exactly(workspace):
+    (workspace / "q.txt").write_text("∫ x² dx = x³/3 + C", encoding="utf-8")
+    assert "∫ x² dx" in ReadAssignmentTool(workspace).run(path="q.txt")
+
+
+def test_extensionless_text_file_reads(workspace):
+    (workspace / "README").write_text("Q1: prove it")
+    assert "prove it" in ReadAssignmentTool(workspace).run(path="README")

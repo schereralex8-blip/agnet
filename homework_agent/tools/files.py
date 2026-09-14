@@ -33,6 +33,49 @@ def resolve_in_workspace(workspace: Path, relative: str) -> Path:
     return resolved
 
 
+# Formats a student is likely to have, that are not plain text and are not PDF.
+BINARY_FORMATS = {
+    ".docx": "a Word document",
+    ".doc": "a Word document",
+    ".odt": "an OpenDocument file",
+    ".pptx": "a PowerPoint deck",
+    ".xlsx": "an Excel workbook",
+    ".zip": "a zip archive",
+    ".png": "an image",
+    ".jpg": "an image",
+    ".jpeg": "an image",
+    ".heic": "an image",
+}
+
+
+def _read_text(path: Path, shown: str) -> str:
+    """Read a file as UTF-8 text, refusing binary rather than returning mojibake."""
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ToolError(f"could not read {shown!r}: {exc}") from None
+
+    described = BINARY_FORMATS.get(path.suffix.lower())
+    if described:
+        raise ToolError(
+            f"{shown} is {described}, which cannot be read directly. "
+            "Export it to PDF or plain text and point me at that, or paste the question in."
+        )
+
+    # NUL bytes decode happily as UTF-8 control characters, so check for them first -
+    # they are the clearest sign the file is not text at all.
+    if b"\x00" in raw[:8192]:
+        raise ToolError(
+            f"{shown} is a binary file, not something I can read as text. "
+            "Export it to PDF or plain text, or paste the question in."
+        )
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        # Latin-1 covers most of the rest: an assignment saved out of Word, say.
+        return raw.decode("latin-1", errors="replace")
+
+
 def _read_pdf(path: Path) -> str:
     try:
         from pypdf import PdfReader
@@ -89,13 +132,8 @@ class ReadAssignmentTool(Tool):
 
         if target.suffix.lower() == ".pdf":
             text = _read_pdf(target)
-        elif target.suffix.lower() in TEXT_SUFFIXES or size < 100_000:
-            try:
-                text = target.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                raise ToolError(f"could not read {path!r}: {exc}") from None
         else:
-            raise ToolError(f"{path!r} does not look like a text file ({target.suffix}).")
+            text = _read_text(target, path)
 
         if len(text) > MAX_CHARS:
             text = text[:MAX_CHARS] + f"\n\n[truncated at {MAX_CHARS} characters]"

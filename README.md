@@ -27,12 +27,16 @@ export ANTHROPIC_API_KEY=sk-ant-...
 Python 3.10+. Get a key from [console.anthropic.com](https://console.anthropic.com/),
 or run `ant auth login` if you have the Anthropic CLI — the SDK picks that up too.
 
+**Assignment formats:** plain text, Markdown, LaTeX, CSV, code, and PDF (with the
+`[pdf]` extra). Word documents are refused with a message telling you to export to PDF
+first — reading a `.docx` as text would just feed the model zip garbage.
+
 ## Use
 
 ```bash
 hw do pset3.pdf                       # the whole assignment -> answers.md
 hw do pset3.pdf -o hw3.md             # ...somewhere else
-hw do lab.docx skip question 5        # extra instructions go last
+hw do pset3.pdf skip question 5        # extra instructions go last
 hw solve "integrate x*e^x dx"         # one problem, worked out
 hw                                    # chat
 hw check my_proof.md                  # grade work you already did
@@ -128,7 +132,7 @@ Anything that writes a file or runs code asks you first, every time, unless you 
 
 ```bash
 pip install -e ".[dev]"
-pytest                       # 110 tests, no API key or network needed
+pytest                       # 119 tests, no API key or network needed
 ```
 
 The test suite drives the whole agent loop against a fake client that replays scripted
