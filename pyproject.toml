@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "homework-agent"
+version = "0.1.0"
+description = "A homework tutor in your terminal, powered by Claude."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["anthropic>=1.0"]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=4.0"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+hw = "homework_agent.cli:main"
+homework-agent = "homework_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["homework_agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
