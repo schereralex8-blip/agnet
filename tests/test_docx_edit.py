@@ -243,3 +243,65 @@ def test_replace_in_paragraph_reports_a_miss(workspace):
 def test_describe_call_is_readable():
     described = FillDocumentTool(".").describe_call({"path": "hw.docx", "edits": [{}, {}]})
     assert described == "fill_document(hw.docx, 2 answer(s))"
+
+
+def test_a_long_anchor_does_not_eat_the_question(workspace):
+    """The anchor locates; `blank` is what gets overwritten. Conflating them deletes the question."""
+    path = build(workspace / "pset.docx", ["A2. The SI unit of force is the ________."])
+    FillDocumentTool(workspace).run(
+        path="pset.docx",
+        edits=[
+            {
+                "anchor": "A2. The SI unit of force is the",
+                "blank": "________",
+                "answer": "newton (N)",
+                "where": "replace",
+            }
+        ],
+    )
+    assert paragraphs(path) == ["A2. The SI unit of force is the newton (N)."]
+
+
+def test_two_blanks_in_one_paragraph_take_two_edits(workspace):
+    path = build(
+        workspace / "pset.docx",
+        [["A2. Force is measured in ", "____", "____", " which equals ", "________", "."]],
+    )
+    FillDocumentTool(workspace).run(
+        path="pset.docx",
+        edits=[
+            {"anchor": "A2. Force is measured", "blank": "________", "answer": "newtons",
+             "where": "replace"},
+            {"anchor": "A2. Force is measured", "blank": "________", "answer": "kg m/s^2",
+             "where": "replace"},
+        ],
+    )
+    assert paragraphs(path) == ["A2. Force is measured in newtons which equals kg m/s^2."]
+
+
+def test_a_blank_that_is_not_there_quotes_the_paragraph(workspace):
+    build(workspace / "pset.docx", ["A2. The unit of force is the newton."])
+    with pytest.raises(ToolError, match="The paragraph reads"):
+        FillDocumentTool(workspace).run(
+            path="pset.docx",
+            edits=[
+                {"anchor": "A2. The unit of force", "blank": "________", "answer": "N",
+                 "where": "replace"}
+            ],
+        )
+
+
+def test_an_ambiguous_blank_is_disambiguated_by_the_anchor(workspace):
+    """Two paragraphs contain '________'; anchoring on the question resolves it."""
+    path = build(
+        workspace / "pset.docx",
+        ["Name: ________", "A2. The unit of force is the ________."],
+    )
+    FillDocumentTool(workspace).run(
+        path="pset.docx",
+        edits=[
+            {"anchor": "A2. The unit of force", "blank": "________", "answer": "newton",
+             "where": "replace"}
+        ],
+    )
+    assert paragraphs(path) == ["Name: ________", "A2. The unit of force is the newton."]

@@ -172,10 +172,14 @@ class FillDocumentTool(Tool):
         "Write answers directly into a Word document (.docx), in place. Give a list of edits; "
         "each one anchors to text already in the document. Use where='after' to put the answer "
         "in a new paragraph below the question (the default), where='replace' to fill a blank "
-        "such as '________' or the word 'Answer:' by replacing it, and where='append' to "
-        "continue the question's own paragraph. Anchors must quote the document exactly and "
-        "match one paragraph only - read the file first. A backup of the original is kept "
-        "automatically. Send all the edits for one document in a single call."
+        "such as '________' or the word 'Answer:', and where='append' to continue the question's "
+        "own paragraph. Anchors must quote the document exactly and match one paragraph only - "
+        "read the file first. When replacing, 'anchor' finds the paragraph and 'blank' is the "
+        "text replaced inside it: to fill one of two blanks in the same question, anchor on the "
+        "question and set blank to '________'. Leave blank out only when the anchor is itself the "
+        "text to replace. Two blanks in one paragraph take two edits - each fills the first one "
+        "still empty. A backup of the original is kept automatically. Send all the edits for one "
+        "document in a single call."
     )
     input_schema = {
         "type": "object",
@@ -197,6 +201,14 @@ class FillDocumentTool(Tool):
                         "answer": {
                             "type": "string",
                             "description": "The answer. Newlines become separate paragraphs.",
+                        },
+                        "blank": {
+                            "type": "string",
+                            "description": (
+                                "where='replace' only: the exact text to replace inside the "
+                                "anchored paragraph, e.g. '________' or 'Answer:'. Defaults to "
+                                "the anchor itself."
+                            ),
                         },
                         "where": {
                             "type": "string",
@@ -261,10 +273,14 @@ class FillDocumentTool(Tool):
             if where == "after":
                 insert_paragraphs_after(paragraph, _split_answer(answer), italic=italic)
             elif where == "replace":
-                if not self._replace(paragraph, anchor, answer):
+                # The anchor locates the paragraph; `blank` is what gets overwritten. Keeping
+                # them separate means a long, unambiguous anchor does not delete the question.
+                blank = str(edit.get("blank") or anchor)
+                if not self._replace(paragraph, blank, answer):
                     raise ToolError(
-                        f"edit {index}: found the paragraph but could not replace "
-                        f"{anchor!r} inside it - quote the blank exactly as it appears"
+                        f"edit {index}: found the paragraph but {blank!r} is not in it - quote "
+                        f"the blank exactly as it appears, or leave 'blank' out to replace the "
+                        f"anchor itself. The paragraph reads: {paragraph.text.strip()[:120]!r}"
                     )
             elif where == "append":
                 run = paragraph.add_run(f" {answer.strip()}")

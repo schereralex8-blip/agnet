@@ -50,6 +50,18 @@ hw due                                # what's due, soonest first
 `hw do` and `hw fill` write without stopping to ask — that's the point of those
 commands. Everywhere else, writing a file asks first.
 
+### Try it first
+
+Two sample assignments ship in `examples/` — a text problem set and a Word worksheet
+built to stress every case the document editor has to handle:
+
+```bash
+hw do examples/pset.txt -o examples/answers.md
+hw fill examples/worksheet.docx -o examples/mine.docx
+```
+
+See `examples/README.md` for what each file exercises and how to reset the folder.
+
 ### Typing into the document
 
 `hw fill` puts the answers in the assignment itself rather than a separate file:
@@ -62,7 +74,10 @@ hw fill quiz.docx answers only, no working
 
 Each answer goes in a new paragraph under its question, or replaces the blank the
 question leaves (`________`, `Answer:`) — including blanks inside tables, and blanks
-Word has split across several runs, which is most of them. Answers are written as
+Word has split across several runs, which is most of them. When replacing, the anchor
+finds the paragraph and a separate `blank` field says what to overwrite inside it, so a
+question with two blanks (or a worksheet whose header is also full of underscores) still
+resolves — one edit per blank. Answers are written as
 normal body text with the question's indentation, so an answer under a numbered
 question doesn't become the next numbered question.
 
@@ -158,7 +173,7 @@ Anything that writes a file or runs code asks you first, every time, unless you 
 
 ```bash
 pip install -e ".[dev]"
-pytest                       # 152 tests, no API key or network needed
+pytest                       # 156 tests, no API key or network needed
 ```
 
 The test suite drives the whole agent loop against a fake client that replays scripted

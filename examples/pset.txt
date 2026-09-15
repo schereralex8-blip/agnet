@@ -1,0 +1,19 @@
+MATH 152 — Problem Set 3
+Due Friday. Show your work for full credit.
+
+1. Differentiate f(x) = x^3 + 2x - 7.
+
+2. Find the derivative of y = x^x. (Hint: the power rule does not apply here.
+   Neither does the exponential rule. Think about what to do to both sides first.)
+
+3. Evaluate the integral of x*e^x dx.
+
+4. A ball is dropped from rest at a height of 20 m. Taking g = 9.81 m/s^2 and
+   ignoring air resistance, how long does it take to hit the ground? Give your
+   answer to three significant figures.
+
+5. A fair six-sided die is rolled four times. What is the probability of getting
+   at least one 6? Give the answer as an exact fraction and as a decimal.
+
+6. State the Intermediate Value Theorem, and use it to show that
+   x^3 - x - 1 = 0 has a root between 1 and 2.
